@@ -7,7 +7,15 @@ import 'package:good_heart/communication_with_server.dart';
 import 'package:good_heart/connection_page.dart';
 import 'main.dart';
 import 'globals.dart' as globals;
+import 'package:logger/logger.dart';
 
+var logger = Logger(
+  filter: null,
+  printer: PrettyPrinter(),
+  output: null,
+);
+
+var LoggerClass = "EvaluationPage";
 
 class EvaluationPage extends StatefulWidget {
 
@@ -16,63 +24,78 @@ class EvaluationPage extends StatefulWidget {
   EvaluationPage({Key? key, this.socket}) : super(key: key);
 
   @override
-  _EvaluationState createState() => _EvaluationState(socket: this.socket);
+  _EvaluationState createState() => _EvaluationState(this.socket);
 }
 
 class _EvaluationState extends State<EvaluationPage> {
-
   Wrapper? socket;
 
-  var listOfFiles = [];
+  var _listOfFiles = [];
   String? chosenFileName;
-  final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
-  final TextEditingController _textEditingController = TextEditingController();
   CommunicationWithServer _serverEval = CommunicationWithServer();
 
 
-  _EvaluationState({this.socket});
+  _EvaluationState(Wrapper? socket){
+    this.socket = socket;
+    socket!.listener.listen((List<int> bytes) async {
+      logger.d("[$LoggerClass] Bytes list of files: $bytes");
+      
+      var stringBytesReceived = new String.fromCharCodes(bytes).trim();
+      logger.d("[$LoggerClass] Getting ecg files test: $stringBytesReceived");
+      
+      var listOfFiles = jsonToList(stringBytesReceived);
+      setState(() {
+        _listOfFiles = listOfFiles;
+        logger.d("[$LoggerClass] Ecg list of files from json: $_listOfFiles");
+      });
+
+      await askForFile(context);
+      },
+
+      onError: (error, StackTrace trace) async {
+        logger.e("[$LoggerClass] Error retriving ecg files: $error\n$trace");
+      },
+
+      cancelOnError: false
+
+    );
+  }
+
 
   Future<void> askForFile(BuildContext context) async {
     return await showDialog(context: context,
         builder: (context){
-          return StatefulBuilder(builder: (context,setState){
+          return StatefulBuilder(
+            builder: (context,setState){
             return AlertDialog(
-              content: Form(
-                  key: _formKey,
-                  // Create listview with cards 
-                  // each card is a button (label: fileName, onTap: chosen = fileName)
-                  child: Container (
+                  content: Container (
                     height: 300.0, // Change as per your requirement
                     width: 300.0,
                     padding: EdgeInsets.only(top: 10),
                     child: ListView.builder(
-                      itemCount: listOfFiles.length,
+                      itemCount: _listOfFiles.length,
                       itemBuilder: (context, index) {
                         return Card(
                           child: ListTile(
                             leading: Icon(Icons.description_rounded),
-                            title: Text(listOfFiles[index].ECGFileName.toString(),
+                            title: Text(_listOfFiles[index].ECGFileName.toString(),
                                 style: TextStyle(height: 1.2, fontSize: 18)),
                             dense: true,
                             onTap: () {
-                              chosenFileName = listOfFiles[index].ECGFileName.toString();
+                              chosenFileName = _listOfFiles[index].ECGFileName.toString();
                               Navigator.of(context).pop();
                             },
                           ),
                         );
                       },
                     )
-                  )
-              ),
+                  ),
               actions: <Widget>[
                 TextButton(
                   child: Text('Back'),
                   onPressed: (){
-                    if(_formKey.currentState!.validate()){
-                      // Do something like updating SharedPreferences or User Settings etc.
-                      chosenFileName = null;
-                      Navigator.of(context).pop();
-                    }
+                    chosenFileName = null;
+                    Navigator.of(context, rootNavigator: true).pop();
                   },
                 ),
               ],
@@ -93,8 +116,6 @@ class _EvaluationState extends State<EvaluationPage> {
                   },
                   child: Text("Maybe next time."),
               )
-
-
             ]
           );
     });
@@ -181,12 +202,10 @@ class _EvaluationState extends State<EvaluationPage> {
     });
   }
 
-  jsonToList(String response) {
-
-    listOfFiles = (json.decode(response) as List).map((i) => CommunicationWithServer.fromJson(i)).toList();
-    print(listOfFiles);
+  jsonToList(String response) {    
+    return (json.decode(response) as List).map((i) => CommunicationWithServer.fromJson(i)).toList();
   }
-
+  
 
   @override
   Widget build(BuildContext context) {
@@ -214,8 +233,6 @@ class _EvaluationState extends State<EvaluationPage> {
                               isThreeLine: true,
                               onTap: () async {
                                 await showAlertNotDeveloped(context);
-                                // var fileChoice = CommunicationWithServer(IdMsg: null, OpCode: 200, ECGFile: _textEditingController.text);
-                                // client!.write(fileChoice.toJson());
                               },
                           ),
                           margin: EdgeInsets.only(left:20, right:20, top: 10),
@@ -247,38 +264,15 @@ class _EvaluationState extends State<EvaluationPage> {
                               try {
                                 globals.idMsgValue += 1;
                                 var sendToServer = CommunicationWithServer(IdMsg: globals.idMsgValue, OpCode: 600);
-                                socket!.client!.write(sendToServer.toJson());
+                                var sendToServerJson = sendToServer.toJson();
+                                socket!.client!.write(sendToServerJson);
+                                logger.d("[$LoggerClass] Sending ecg file request to server: $sendToServerJson");
 
-                                print(sendToServer.toJson());
-
-                                socket!.listener.listen((List<int> bytes) { // AQUI acho que não tem o await
-                                  setState(() {
-                                    listOfFiles = jsonToList((new String.fromCharCodes(bytes).trim()));
-                                  });
-
-                                  }, 
-                                  onError: (error, StackTrace trace) async {
-                                    print(error);
-                                  },
-
-                                  cancelOnError: false
-
-                                );
-
-                                await askForFile(context);
-                                // print(chosenFileName);
                                 // send to server in Json format
                                 if (chosenFileName != null) {
                                   globals.idMsgValue += 1;
                                   var fileChoice = CommunicationWithServer(IdMsg: globals.idMsgValue, OpCode: 100, ECGFile: chosenFileName);
                                   socket!.client!.write(fileChoice.toJson());
-
-                                  print(fileChoice.toJson());
-                                // pop loading dialog box
-                                // listen for results 
-                                // OpCode 400
-
-                                  // socket!.client!.write(CommunicationWithServer(OpCode: 100, ECGFile: chosenFileName, GoodComplex: 100, BadComplex: 0).toJson());
                                 
                                 await socket!.listener.listen((List<int> bytes) {
 
