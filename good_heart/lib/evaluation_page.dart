@@ -37,19 +37,46 @@ class _EvaluationState extends State<EvaluationPage> {
 
   _EvaluationState(Wrapper? socket){
     this.socket = socket;
-    socket!.listener.listen((List<int> bytes) async {
-      logger.d("[$LoggerClass] Bytes list of files: $bytes");
-      
-      var stringBytesReceived = new String.fromCharCodes(bytes).trim();
-      logger.d("[$LoggerClass] Getting ecg files test: $stringBytesReceived");
-      
-      var listOfFiles = jsonToList(stringBytesReceived);
-      setState(() {
-        _listOfFiles = listOfFiles;
-        logger.d("[$LoggerClass] Ecg list of files from json: $_listOfFiles");
-      });
+    startSocketListenInEvaluationPage();
+  }
 
-      await askForFile(context);
+  void startSocketListenInEvaluationPage(){
+    socket!.listener.listen((List<int> bytes) async {
+        logger.d("[$LoggerClass] Bytes list of files: $bytes");
+
+        var stringBytesReceived = new String.fromCharCodes(bytes).trim();
+        logger.d("[$LoggerClass] Getting from server: $stringBytesReceived");
+
+        var receivedFromServer = CommunicationWithServer.fromJson(jsonDecode(stringBytesReceived));
+
+        switch(receivedFromServer.OpCode){
+          case 610:
+            var listOfFiles = jsonToList(stringBytesReceived);
+            setState(() {
+              _listOfFiles = listOfFiles;
+              logger.d("[$LoggerClass] Ecg list of files from json: $_listOfFiles");
+            });
+            await askForFile(context);
+            // send to server in Json format
+            if (chosenFileName != null) {
+              logger.d("[$LoggerClass] chosenFileName: $chosenFileName");
+              globals.idMsgValue += 1;
+              var fileChoice = CommunicationWithServer(IdMsg: globals.idMsgValue, OpCode: 100, ECGFile: chosenFileName);
+              socket!.client!.write(fileChoice.toJson());
+            }
+            break;
+
+          case 400:
+            setState(() {
+              _serverEval = receivedFromServer;
+            });
+            await showServerEvaluation(context);
+            break;
+
+          default:
+            logger.d("[$LoggerClass] Sent from server unknown OpCode");
+            break;
+        }
       },
 
       onError: (error, StackTrace trace) async {
@@ -78,11 +105,11 @@ class _EvaluationState extends State<EvaluationPage> {
                         return Card(
                           child: ListTile(
                             leading: Icon(Icons.description_rounded),
-                            title: Text(_listOfFiles[index].ECGFileName.toString(),
+                            title: Text(_listOfFiles[index].toString(),
                                 style: TextStyle(height: 1.2, fontSize: 18)),
                             dense: true,
                             onTap: () {
-                              chosenFileName = _listOfFiles[index].ECGFileName.toString();
+                              chosenFileName = _listOfFiles[index].toString();
                               Navigator.of(context).pop();
                             },
                           ),
@@ -203,7 +230,11 @@ class _EvaluationState extends State<EvaluationPage> {
   }
 
   jsonToList(String response) {    
-    return (json.decode(response) as List).map((i) => CommunicationWithServer.fromJson(i)).toList();
+    var responseDecoded = CommunicationWithServer.fromJson(jsonDecode(response));
+    var files = responseDecoded.Files as List;
+    logger.d("[$LoggerClass] Response from server files: $files");
+
+    return files;
   }
   
 
@@ -268,32 +299,9 @@ class _EvaluationState extends State<EvaluationPage> {
                                 socket!.client!.write(sendToServerJson);
                                 logger.d("[$LoggerClass] Sending ecg file request to server: $sendToServerJson");
 
-                                // send to server in Json format
-                                if (chosenFileName != null) {
-                                  globals.idMsgValue += 1;
-                                  var fileChoice = CommunicationWithServer(IdMsg: globals.idMsgValue, OpCode: 100, ECGFile: chosenFileName);
-                                  socket!.client!.write(fileChoice.toJson());
                                 
-                                await socket!.listener.listen((List<int> bytes) {
-
-                                  setState(() {
-                                    _serverEval = CommunicationWithServer.fromJson(jsonDecode(new String.fromCharCodes(bytes).trim()));
-                                  });
-
-                                  }, 
-                                  onError: (error, StackTrace trace) async {
-                                    print(error);
-                                  },
-
-                                  cancelOnError: false
-
-                                );
-                                  
-                                  await showServerEvaluation(context);
-                                }
 
                               }catch(_) {
-
                                 await showAlertWifiNotConnected(context); // Nao necessariamente o problema vai ser o wifi nao conectado, pode ser qlqlr coisa que saia do try
                               }
 
