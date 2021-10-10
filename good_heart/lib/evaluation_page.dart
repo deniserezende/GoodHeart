@@ -168,7 +168,7 @@ class _EvaluationState extends State<EvaluationPage> {
                 Card(
                   child: ListTile(
                     leading: Icon(Icons.medical_services_rounded),
-                    title: Text("Heart rate: " + _serverEval.FreqCard.toString(),
+                    title: Text("Heart rate: " + _serverEval.FreqCard.toString() + " bpm",
                         style: TextStyle(height: 0, fontSize: 18)),
                     dense: true,
                   ),
