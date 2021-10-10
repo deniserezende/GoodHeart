@@ -17,7 +17,6 @@ var logger = Logger(
 );
 
 var LoggerClass = "ConnectionPage";
-var isConnected = 0;
 
 class ConnectionPage extends StatefulWidget {
 
@@ -40,7 +39,7 @@ class _ConnectionPage extends State<ConnectionPage> {
 
   _ConnectionPage(Wrapper? socket){
       this.socket = socket;
-    if(isConnected == 1){
+    if(globals.isConnected == 1){
       startSocketListenInConnectionPage();
     }
   }
@@ -241,7 +240,7 @@ class _ConnectionPage extends State<ConnectionPage> {
                         // Resets the idMsgValue
                         globals.idMsgValue = 0;
                         startSocketListenInConnectionPage();
-                        isConnected = 1;
+                        globals.isConnected = 1;
                       }
                       } catch(_) {
                       if(_pressedOkInConnect != 0) {
@@ -271,6 +270,7 @@ class _ConnectionPage extends State<ConnectionPage> {
                       socket!.client!.close();
                       _textForAppearText.text = "Disconnected";
                       await showAlertPassedSocket(context);
+                      globals.isConnected = 0;
 
                     }catch(_) { // AQUI acho que tá com um bug
                       _textForAppearText.text = "Disconnected";

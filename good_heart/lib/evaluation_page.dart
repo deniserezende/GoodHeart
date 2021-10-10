@@ -37,7 +37,9 @@ class _EvaluationState extends State<EvaluationPage> {
 
   _EvaluationState(Wrapper? socket){
     this.socket = socket;
-    startSocketListenInEvaluationPage();
+    if(globals.isConnected == 1){
+      startSocketListenInEvaluationPage();
+    }
   }
 
   void startSocketListenInEvaluationPage(){
