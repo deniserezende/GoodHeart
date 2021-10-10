@@ -6,9 +6,18 @@ import 'package:good_heart/colors.dart';
 import 'package:good_heart/main.dart';
 import 'package:animated_text_kit/animated_text_kit.dart';
 import 'package:good_heart/globals.dart' as globals;
-
-
 import 'communication_with_server.dart';
+import 'package:logger/logger.dart';
+
+
+var logger = Logger(
+  filter: null,
+  printer: PrettyPrinter(),
+  output: null,
+);
+
+var LoggerClass = "ConnectionPage";
+var isConnected = 0;
 
 class ConnectionPage extends StatefulWidget {
 
@@ -16,7 +25,7 @@ class ConnectionPage extends StatefulWidget {
   ConnectionPage({Key? key, this.socket}) : super(key: key);
 
   @override
-  _ConnectionPage createState() => _ConnectionPage(socket: this.socket);
+  _ConnectionPage createState() => _ConnectionPage(this.socket);
 }
 
 class _ConnectionPage extends State<ConnectionPage> {
@@ -28,7 +37,41 @@ class _ConnectionPage extends State<ConnectionPage> {
 
   Wrapper? socket;
   int _pressedOkInConnect = 0;
-  _ConnectionPage({this.socket});
+
+  _ConnectionPage(Wrapper? socket){
+      this.socket = socket;
+    if(isConnected == 1){
+      startSocketListenInConnectionPage();
+    }
+  }
+
+  void startSocketListenInConnectionPage(){
+    socket!.listener.listen((List<int> bytes) async { // AQUI acho que não tem o await
+      var receivedFromServer = CommunicationWithServer.fromJson(jsonDecode(new String.fromCharCodes(bytes).trim()));
+
+      _textEditingControllerConnectionTest.text = "Not connected";
+
+      switch(receivedFromServer.OpCode){
+        case 510:
+          setState(() {
+            _textEditingControllerConnectionTest.text = "Connected";
+          });
+          await showAlertServerAnswer(context);
+          break;
+        default:
+          logger.d("[$LoggerClass] Sent from server unknown OpCode");
+          break;
+
+      }
+    },
+
+    onError: (error, StackTrace trace) async {
+      await showAlertErrorSocket(context);
+    },
+
+    cancelOnError: false
+    );
+  }
 
   // Dialog Structure
   Future<void> showIPDialog(BuildContext context) async {
@@ -197,6 +240,8 @@ class _ConnectionPage extends State<ConnectionPage> {
                         _pressedOkInConnect = 0;
                         // Resets the idMsgValue
                         globals.idMsgValue = 0;
+                        startSocketListenInConnectionPage();
+                        isConnected = 1;
                       }
                       } catch(_) {
                       if(_pressedOkInConnect != 0) {
@@ -247,34 +292,10 @@ class _ConnectionPage extends State<ConnectionPage> {
                     borderRadius: BorderRadius.circular(10.0),
                   ),
                   onTap: () async {
-
                     try {
                       globals.idMsgValue += 1;
                       var sendToServer = CommunicationWithServer(IdMsg: globals.idMsgValue, OpCode: 500);
                       socket!.client!.write(sendToServer.toJson());
-                      
-                      socket!.listener.listen((List<int> bytes) { // AQUI acho que não tem o await
-                        var receivedFromServer = CommunicationWithServer.fromJson(jsonDecode(new String.fromCharCodes(bytes).trim()));
-                        //var receivedFromServer = (new String.fromCharCodes(bytes).trim());
-                        setState(() {
-                          if(receivedFromServer.OpCode == 510){
-                          _textEditingControllerConnectionTest.text = "Connected";
-
-                        }
-                        else{
-                          _textEditingControllerConnectionTest.text = "Not connected";
-                        }
-                        });
-                        
-                      }, 
-                    
-                      onError: (error, StackTrace trace) async {
-                        await showAlertErrorSocket(context);
-                      },
-
-                      cancelOnError: false
-                      );
-                      await showAlertServerAnswer(context);
 
                     }catch(_) {
                       _textEditingControllerConnectionTest.text = "Not connected";
