@@ -1,10 +1,9 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/widgets.dart';
-import 'colors.dart';
-import 'home_page.dart';
-import 'connection_page.dart';
-import 'evaluation_page.dart';
-import 'settings_page.dart';
+import 'Theme/colors.dart';
+import 'Screens/home_page.dart';
+import 'Screens/connection_page.dart';
+import 'Screens/evaluation_page.dart';
+import 'Screens/settings_page.dart';
 import 'dart:io';
 
 void main() {
